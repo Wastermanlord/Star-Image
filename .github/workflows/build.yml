@@ -21,7 +21,6 @@ jobs:
       - name: Instalar dependencias base
         run: |
           pacman -Syu --noconfirm
-          # Agregamos 'rust' a la lista para evitar que pregunte qué proveedor usar
           pacman -S --noconfirm --needed base-devel git cmake python curl sudo \
             webkit2gtk-4.1 gtk3 libayatana-appindicator patchelf \
             openssl librsvg pacman-contrib rust cargo
@@ -58,28 +57,39 @@ jobs:
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
           # 3. Preparar directorio de trabajo
-          # En lugar de crear rutas pkg/usr manuales, usamos una carpeta de fuentes
           PKG_DIR=/home/builder/arch-pkg
           mkdir -p $PKG_DIR
 
-          # Copiamos el binario compilado como "fuente" para makepkg
+          # Copiamos el binario compilado como "fuente"
           cp src-tauri/target/release/$BIN_NAME $PKG_DIR/binario_app
 
-          # 4. Crear PKGBUILD corrigiendo la ruta
+          # 4. Crear PKGBUILD con acceso directo al menú
           cat <<EOF > $PKG_DIR/PKGBUILD
           pkgname='$APP_NAME'
           pkgver='$APP_VERSION'
           pkgrel=1
-          pkgdesc="Aplicación Tauri - Proyecto Astral"
+          pkgdesc="Visor de imágenes ligero - Proyecto Astral"
           arch=('x86_64')
           depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'openssl' 'librsvg')
-          # El binario que copiamos es nuestra fuente
           source=("binario_app")
           sha256sums=('SKIP')
 
           package() {
-              # install -D crea las carpetas necesarias automáticamente
+              # 1. Instalar el binario en /usr/bin/
               install -Dm755 "\$srcdir/binario_app" "\$pkgdir/usr/bin/\$pkgname"
+
+              # 2. Crear el archivo .desktop para el menú de aplicaciones
+              mkdir -p "\$pkgdir/usr/share/applications"
+              cat <<EOT > "\$pkgdir/usr/share/applications/\$pkgname.desktop"
+          [Desktop Entry]
+          Name=Star Image
+          Comment=Visor de imágenes rápido y ligero
+          Exec=\$pkgname
+          Icon=utilities-terminal
+          Type=Application
+          Categories=Graphics;Viewer;
+          Terminal=false
+          EOT
           }
           EOF
 
@@ -88,7 +98,6 @@ jobs:
 
           # 5. Ejecutar makepkg como usuario 'builder'
           cd $PKG_DIR
-          # --skipinteg es necesario porque no pusimos hashes reales en sha256sums
           sudo -u builder makepkg -sf --noconfirm --skipinteg
 
           # 6. Mover el resultado

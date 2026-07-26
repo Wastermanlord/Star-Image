@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Star Image",
   "version": "1.0.0",
-  "identifier": "com.starimage.app",
+  "identifier": "com.proyectoastral.starimage",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
