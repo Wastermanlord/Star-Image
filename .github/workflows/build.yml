@@ -8,8 +8,8 @@ permissions:
 
 jobs:
 
-# ==========================================
-  # JOB 2: ARCH LINUX - Genera paquete nativo .pkg.tar.zst
+  # ==========================================
+  # JOB 2: ARCH LINUX - Paquete Nativo (.pkg.tar.zst)
   # ==========================================
   build-arch-package:
     runs-on: ubuntu-24.04
@@ -47,10 +47,12 @@ jobs:
 
       - name: Crear paquete Arch Linux (.pkg.tar.zst)
         run: |
-          # 1. Extraer info
+          # 1. Extraer info (NOMBRE CORREGIDO)
           APP_NAME=$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
           APP_VERSION=$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
-          BIN_NAME=${APP_NAME//-/_}
+
+          # NO cambiamos guiones por guiones bajos. Usamos el nombre tal cual sale en el log de Rust.
+          BIN_NAME=$APP_NAME
 
           # 2. Configurar el usuario 'builder'
           useradd -m builder
@@ -60,7 +62,7 @@ jobs:
           PKG_DIR=/home/builder/arch-pkg
           mkdir -p $PKG_DIR
 
-          # Copiamos el binario compilado como "fuente"
+          # Copiamos el binario compilado (verificado con guiones)
           cp src-tauri/target/release/$BIN_NAME $PKG_DIR/binario_app
 
           # 4. Crear PKGBUILD con acceso directo al menú
@@ -110,3 +112,4 @@ jobs:
           generate_release_notes: true
           files: |
             arch-dist/*.pkg.tar.zst
+
