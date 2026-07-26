@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Image</title>
+  <link rel="icon" type="image/png" href="img/starimage.png">
+  <link rel="stylesheet" href="src/style.css">
+  <script src="/node_modules/@phosphor-icons/web/src/index.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="dropOverlay">
+      <div class="drop-content">
+        <i class="ph ph-arrow-circle-down" style="font-size:48px"></i>
+        <span>Suelta imágenes aquí</span>
+      </div>
+    </div>
+
+    <!-- Top bar -->
+    <div id="topBar">
+      <div class="top-left">
+        <img src="img/starimage.png" class="app-icon-img">
+        <span class="app-title">Star Image</span>
+        <span class="path-sep"></span>
+        <span id="pathDisplay" class="path-display"></span>
+        <button class="btn-icon small" id="refreshBtn" title="Recargar carpeta (F5)" style="display:none">
+          <i class="ph ph-arrows-clockwise"></i>
+        </button>
+      </div>
+      <div class="top-right">
+        <button class="btn-icon" id="openBtn" title="Abrir imagen (Ctrl+O)">
+          <i class="ph ph-folder-open"></i>
+        </button>
+        <button class="btn-icon" id="folderBtn" title="Abrir carpeta">
+          <i class="ph ph-folder"></i>
+        </button>
+        <button class="btn-icon" id="searchBtn" title="Buscar (Ctrl+F)">
+          <i class="ph ph-magnifying-glass"></i>
+        </button>
+        <button class="btn-icon" id="toggleSidebarBtn" title="Miniaturas (Ctrl+B)">
+          <i class="ph ph-sidebar"></i>
+        </button>
+        <span class="separator"></span>
+        <button class="btn-icon" id="galleryBtn" title="Galería (Ctrl+G)">
+          <i class="ph ph-grid-four"></i>
+        </button>
+        <button class="btn-icon" id="infoBtn" title="Info / EXIF (Ctrl+I)">
+          <i class="ph ph-list"></i>
+        </button>
+        <span class="separator"></span>
+        <button class="btn-icon" id="themeBtn" title="Tema">
+          <i class="ph ph-moon"></i>
+        </button>
+        <button class="btn-icon" id="helpBtn" title="Atajos (Ctrl+/)">
+          <i class="ph ph-question"></i>
+        </button>
+        <button class="btn-icon" id="aboutBtn" title="Acerca de">
+          <i class="ph ph-info"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main layout -->
+    <div id="mainLayout">
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="sidebar-header">
+          <span><i class="ph ph-grid-four" style="margin-right:6px"></i>Miniaturas</span>
+          <button class="btn-icon small" id="toggleSidebar">
+            <i class="ph ph-caret-double-left"></i>
+          </button>
+        </div>
+        <div id="thumbnailList"></div>
+      </div>
+
+      <!-- Viewer -->
+      <div id="viewerArea">
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">
+            <img src="img/starimage.png" class="empty-icon-img">
+          </div>
+          <h2>Star Image</h2>
+          <p class="empty-sub">Arrastra imágenes o abre una carpeta</p>
+          <div class="empty-actions">
+            <button class="btn primary" id="emptyOpenBtn">
+              <i class="ph ph-folder-open" style="margin-right:6px"></i>Abrir imagen
+            </button>
+            <button class="btn secondary" id="emptyFolderBtn">
+              <i class="ph ph-folder" style="margin-right:6px"></i>Abrir carpeta
+            </button>
+          </div>
+          <div id="recentArea" class="recent-area" style="display:none">
+            <span class="recent-title"><i class="ph ph-clock-counter-clockwise" style="margin-right:4px"></i>Carpetas recientes</span>
+            <div id="recentList" class="recent-list"></div>
+          </div>
+        </div>
+
+        <div id="imageContainer" style="display:none">
+          <div id="loadingOverlay" class="loading-overlay" style="display:none">
+            <div class="spinner"></div>
+          </div>
+          <img id="mainImage" alt="Imagen" draggable="false" decoding="async" fetchpriority="high">
+          <div id="navLeft" class="nav-overlay left">
+            <i class="ph ph-caret-left"></i>
+          </div>
+          <div id="navRight" class="nav-overlay right">
+            <i class="ph ph-caret-right"></i>
+          </div>
+          <!-- Image info badge -->
+          <div id="imageBadge" class="image-badge">
+            <span id="badgeInfo"></span>
+          </div>
+          <!-- Image overlay menu -->
+          <div id="imgMenu" class="img-menu" style="display:none">
+            <div class="img-menu-left">
+              <button class="ov-btn" id="prevBtn" title="Anterior (←)">
+                <i class="ph ph-caret-left"></i>
+              </button>
+              <span id="counterInfo" class="ov-text">—</span>
+              <button class="ov-btn" id="nextBtn" title="Siguiente (→)">
+                <i class="ph ph-caret-right"></i>
+              </button>
+            </div>
+            <div class="img-menu-center">
+              <div class="zoom-group">
+                <button class="ov-btn" id="zoomOutBtn" title="Alejar">
+                  <i class="ph ph-minus"></i>
+                </button>
+                <span id="zoomLevel" class="ov-text zoom-lbl">Ajustar</span>
+                <button class="ov-btn" id="zoomInBtn" title="Acercar">
+                  <i class="ph ph-plus"></i>
+                </button>
+              </div>
+              <button class="ov-btn" id="fitBtn" title="Ajustar">
+                <i class="ph ph-arrows-out"></i>
+              </button>
+              <span class="ov-sep"></span>
+              <button class="ov-btn" id="fullscreenBtn" title="Pantalla completa">
+                <i class="ph ph-arrows-out-simple"></i>
+              </button>
+              <span class="ov-sep"></span>
+              <button class="ov-btn" id="slideshowBtn" title="Slideshow">
+                <i class="ph ph-play"></i>
+              </button>
+              <span class="ov-sep"></span>
+              <button class="ov-btn" id="deleteBtn" title="Eliminar (Supr)">
+                <i class="ph ph-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gallery view -->
+        <div id="galleryView" class="gallery-view" style="display:none">
+          <div class="gallery-bar">
+            <span class="gallery-count" id="galleryCount"></span>
+            <input type="text" id="galleryFilter" class="gallery-filter" placeholder="Filtrar por nombre...">
+          </div>
+          <div id="galleryGrid" class="gallery-grid"></div>
+        </div>
+
+        <div id="searchPanel" style="display:none">
+          <div class="search-header">
+            <div class="search-bar">
+              <i class="ph ph-magnifying-glass search-icon"></i>
+              <input type="text" id="searchInput" placeholder="Buscar imágenes por nombre..." autofocus>
+              <button class="btn-icon small" id="searchCloseBtn">
+                <i class="ph ph-x"></i>
+              </button>
+            </div>
+          </div>
+          <div id="searchResults"><div class="search-empty">Escribe para buscar...</div></div>
+        </div>
+      </div>
+
+      <!-- Info sidebar -->
+      <div id="infoBar">
+        <div class="infoBar-header">
+          <span>Info</span>
+          <button class="btn-icon small" id="toggleInfoBar">
+            <i class="ph ph-caret-double-right"></i>
+          </button>
+        </div>
+        <div id="infoBarContent" class="infoBar-content">
+        <div class="info-section">
+          <div class="info-item">
+            <span class="info-label"><i class="ph ph-image"></i> Archivo</span>
+            <span id="infoFileName" class="info-value info-clickable">—</span>
+            <input id="renameInput" class="rename-input" type="text" style="display:none">
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="ph ph-frame-corners"></i> Dimensiones</span>
+            <span id="infoResolution" class="info-value">—</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="ph ph-hdd"></i> Peso</span>
+            <span id="infoSize" class="info-value">—</span>
+          </div>
+        </div>
+
+        <div class="info-section exif-section" id="exifSection" style="display:none">
+          <div class="exif-header" id="exifToggle">
+            <i class="ph ph-camera"></i>
+            <span>EXIF</span>
+            <i class="ph ph-caret-down exif-arrow"></i>
+          </div>
+          <div id="exifContent" class="exif-content">
+            <div class="info-item">
+              <span class="info-label">Cámara</span>
+              <span id="exifCamera" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Software</span>
+              <span id="exifSoftware" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Fecha</span>
+              <span id="exifDate" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Apertura</span>
+              <span id="exifAperture" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Vel. obturador</span>
+              <span id="exifShutter" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">ISO</span>
+              <span id="exifIso" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Long. focal</span>
+              <span id="exifFocal" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Flash</span>
+              <span id="exifFlash" class="info-value">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Orientación</span>
+              <span id="exifOrientation" class="info-value">—</span>
+            </div>
+            <div class="info-item" id="exifGpsRow" style="display:none">
+              <span class="info-label">GPS</span>
+              <a id="exifGpsLink" class="info-value info-link" href="#" target="_blank" rel="noopener">Ver en mapa</a>
+            </div>
+            <div id="exifEmpty" class="exif-empty">Sin datos EXIF</div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    <!-- Context menu -->
+    <div id="contextMenu" class="context-menu" style="display:none">
+      <button id="ctxOpen"><i class="ph ph-folder-open"></i>Abrir imagen</button>
+      <button id="ctxFolder"><i class="ph ph-folder"></i>Abrir carpeta</button>
+      <div class="ctx-separator"></div>
+      <button id="ctxFullscreen"><i class="ph ph-arrows-out-simple"></i>Pantalla completa</button>
+      <button id="ctxCopyPath"><i class="ph ph-copy"></i>Copiar ruta</button>
+      <div class="ctx-separator"></div>
+      <button id="ctxDelete" class="ctx-danger"><i class="ph ph-trash"></i>Eliminar</button>
+    </div>
+
+    <!-- Confirm modal -->
+    <div id="confirmModal" class="confirm-modal" style="display:none">
+      <div class="confirm-dialog">
+        <p id="confirmMsg" class="confirm-msg"></p>
+        <div class="confirm-actions">
+          <button class="btn secondary" id="confirmCancel">Cancelar</button>
+          <button class="btn primary danger" id="confirmOk">Mover a Papelera</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shortcuts modal -->
+    <div id="shortcutsModal" class="shortcuts-modal" style="display:none">
+      <div class="shortcuts-dialog">
+        <div class="shortcuts-header">
+          <span>Atajos de teclado</span>
+          <button class="btn-icon small" id="shortcutsClose"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="shortcuts-body">
+          <div class="shortcut-group"><span class="shortcut-key">← / →</span><span>Anterior / Siguiente</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">S</span><span>Slideshow</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">F</span><span>Pantalla completa</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">+ / -</span><span>Acercar / Alejar</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">0</span><span>Ajustar al tamaño</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">Supr</span><span>Eliminar imagen</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+O</span><span>Abrir imagen</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+B</span><span>Miniaturas</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+G</span><span>Modo galería</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+I</span><span>Info / EXIF</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+F</span><span>Buscar</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">Ctrl+/</span><span>Atajos</span></div>
+          <div class="shortcut-group"><span class="shortcut-key" style="min-width:90px">F5</span><span>Recargar carpeta</span></div>
+          <div class="shortcut-group"><span class="shortcut-key">Esc</span><span>Cerrar panel / Salir de búsqueda</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About modal -->
+    <div id="aboutModal" class="shortcuts-modal" style="display:none">
+      <div class="shortcuts-dialog" style="width:340px">
+        <div class="shortcuts-header">
+          <span>Acerca de Star Image</span>
+          <button class="btn-icon small" id="aboutClose"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="shortcuts-body" style="text-align:center">
+          <img src="img/starimage.png" style="width:48px;height:48px;border-radius:8px;display:block;margin:0 auto 8px">
+          <div style="font-size:16px;font-weight:700;margin-bottom:4px">Star Image</div>
+          <div style="color:var(--text2);font-size:12px;margin-bottom:8px">Versión 1.0.0</div>
+          <div style="color:var(--text2);font-size:12px;line-height:1.6">
+            Visor de imágenes ligero, rápido y multiplataforma.<br>
+            Desarrollado con Rust + Tauri.
+          </div>
+
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border2);text-align:center">
+            <div id="updateStatus" style="font-size:11px;color:var(--text2);margin-bottom:8px;min-height:16px"></div>
+            <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline" id="checkUpdateBtn" style="font-size:11px;padding:5px 12px">
+                <i class="ph ph-arrows-clockwise"></i> Buscar actualizaciones
+              </button>
+              <button class="btn btn-primary" id="downloadUpdateBtn" style="font-size:11px;padding:5px 12px;display:none">
+                <i class="ph ph-download-simple"></i> Descargar
+              </button>
+              <button class="btn btn-primary" id="installUpdateBtn" style="font-size:11px;padding:5px 12px;display:none">
+                <i class="ph ph-rocket-launch"></i> Instalar ahora
+              </button>
+            </div>
+            <div id="updateProgress" style="display:none;margin-top:8px">
+              <div style="width:100%;height:4px;background:var(--border2);border-radius:2px;overflow:hidden">
+                <div id="updateProgressFill" style="width:0%;height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s"></div>
+              </div>
+              <div id="updateProgressText" style="font-size:10px;color:var(--text2);margin-top:4px"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;display:flex;justify-content:center;gap:8px">
+            <a href="#" class="btn btn-outline" id="aboutGitHub" style="font-size:12px;padding:6px 14px">
+              <i class="ph ph-github-logo"></i> GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast" style="display:none"></div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
