@@ -355,42 +355,47 @@ fn rename_file(path: String, new_name: String) -> Result<String, String> {
 }
 
 pub fn run() {
+    // Pequeño delay para evitar condición de carrera al inicializar EGL
+    // bajo compositores Wayland (ej. KDE Plasma) antes de crear el WebView.
+    #[cfg(target_os = "linux")]
+    std::thread::sleep(std::time::Duration::from_millis(400));
+
     tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Mutex::new(ExifCache::new()))
-        .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
-            // Add cache dir to asset scope so thumbnails load
-            let cache = thumb_dir(app.handle());
-            if cache.exists() {
-                app.handle().asset_protocol_scope()
-                    .allow_directory(cache, true)
-                    .ok();
-            }
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            scan_directory,
-            get_image_info,
-            search_images,
-            get_recent_paths,
-            save_recent_path,
-            open_folder,
-            add_folder_scope,
-            get_thumbnails,
-            clean_thumb_cache,
-            get_exif,
-            trash_file,
-            rename_file,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .manage(Mutex::new(ExifCache::new()))
+    .setup(|app| {
+        if cfg!(debug_assertions) {
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .build(),
+            )?;
+        }
+        // Add cache dir to asset scope so thumbnails load
+        let cache = thumb_dir(app.handle());
+        if cache.exists() {
+            app.handle().asset_protocol_scope()
+            .allow_directory(cache, true)
+            .ok();
+        }
+        Ok(())
+    })
+    .invoke_handler(tauri::generate_handler![
+        scan_directory,
+        get_image_info,
+        search_images,
+        get_recent_paths,
+        save_recent_path,
+        open_folder,
+        add_folder_scope,
+        get_thumbnails,
+        clean_thumb_cache,
+        get_exif,
+        trash_file,
+        rename_file,
+    ])
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
 }
