@@ -7,51 +7,8 @@ permissions:
   contents: write
 
 jobs:
-  # ==========================================
-  # JOB 1: UBUNTU - Genera el AppImage Universal
-  # ==========================================
-  build-ubuntu-appimage:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Instalar dependencias (Ubuntu)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev \
-            build-essential curl wget file libssl-dev libgtk-3-dev \
-            libayatana-appindicator3-dev librsvg2-dev patchelf
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: ubuntu-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ubuntu-cargo-
-
-      - run: npm install
-      - run: npm run tauri build
-
-      - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          generate_release_notes: true
-          files: |
-            src-tauri/target/release/bundle/appimage/*.AppImage
-
-  # ==========================================
+# ==========================================
   # JOB 2: ARCH LINUX - Genera paquete nativo .pkg.tar.zst
   # ==========================================
   build-arch-package:
@@ -68,7 +25,6 @@ jobs:
             webkit2gtk-4.1 gtk3 libayatana-appindicator patchelf \
             openssl librsvg pacman-contrib rust cargo
 
-      # Usamos setup-node ANTES de cualquier cosa de npm
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -86,53 +42,48 @@ jobs:
           key: arch-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: arch-cargo-
 
-      # COMPILAMOS TODO COMO ROOT. Aquí no hay errores de PATH ni de permisos.
       - run: npm install
       - run: npm run tauri build -- --no-bundle
 
-      # EMPAQUETAMOS CON FAKEROOT (Simula usuario normal sin ser root)
       - name: Crear paquete Arch Linux (.pkg.tar.zst)
         run: |
-          # Extraer nombre y versión
+          # 1. Extraer info
           APP_NAME=$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
           APP_VERSION=$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
           BIN_NAME=${APP_NAME//-/_}
 
-          echo "========================================"
-          echo "Nombre en Cargo.toml : $APP_NAME"
-          echo "Nombre del binario   : $BIN_NAME"
-          echo "Versión              : $APP_VERSION"
-          echo "========================================"
+          # 2. Configurar el usuario 'builder' (Indispensable para makepkg)
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-          # Preparar estructura de paquete manual
-          PKG_DIR=/tmp/arch-pkg
+          # 3. Preparar directorio de trabajo con permisos para el usuario
+          PKG_DIR=/home/builder/arch-pkg
           mkdir -p $PKG_DIR/pkg/usr/bin
 
-          # Copiar el binario compilado al directorio del paquete
+          # Copiar binario y dar propiedad al usuario builder
           install -Dm755 src-tauri/target/release/$BIN_NAME $PKG_DIR/pkg/usr/bin/$APP_NAME
 
-          # Crear PKGBUILD que solo hace el package() (no compila, ya lo hicimos)
+          # 4. Crear PKGBUILD
           cat <<EOF > $PKG_DIR/PKGBUILD
           pkgname=$APP_NAME
           pkgver=$APP_VERSION
           pkgrel=1
-          pkgdesc="Aplicación Tauri"
+          pkgdesc="Aplicación Tauri - Proyecto Astral"
           arch=('x86_64')
           depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'openssl' 'librsvg')
-
           package() {
-              # Los archivos ya están en pkg/, makepkg los mueve automáticamente al destino
               cp -r \$srcdir/../pkg/usr \$pkgdir/
           }
           EOF
 
+          # Cambiar dueño de toda la carpeta de construcción
+          chown -R builder:builder $PKG_DIR
+
+          # 5. Ejecutar makepkg como usuario 'builder'
           cd $PKG_DIR
+          sudo -u builder makepkg -sf --noconfirm --skipinteg
 
-          # EL TRUCO FINAL: Usar fakeroot y makepkg solo para empaquetar, no para compilar
-          # --skipinteg salta validaciones estrictas de root
-          fakeroot makepkg -sf --noconfirm --skipinteg
-
-          # Mover el resultado
+          # 6. Mover el resultado de vuelta al workspace de GitHub
           mkdir -p $GITHUB_WORKSPACE/arch-dist
           cp *.pkg.tar.zst $GITHUB_WORKSPACE/arch-dist/
 
