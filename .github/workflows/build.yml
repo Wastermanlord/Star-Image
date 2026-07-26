@@ -61,84 +61,97 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar dependencias base y preparar entorno (Arch)
+      - name: Instalar dependencias base y preparar usuario builder
         run: |
-          # Forzar locale para que makepkg no falle con warnings de idioma
-          echo "LANG=en_US.UTF-8" >> /etc/locale.conf
-          echo "LC_ALL=en_US.UTF-8" >> /etc/environment
-          export LC_ALL=en_US.UTF-8
-
           pacman -Syu --noconfirm
           pacman -S --noconfirm base-devel git nodejs npm cmake \
             webkit2gtk-4.1 gtk3 libayatana-appindicator patchelf \
-            openssl librsvg pacman-contrib rust cargo
+            openssl librsvg pacman-contrib rust cargo sudo
 
-          # Arreglar permisos para fakeroot (vital en contenedores Arch)
-          echo "root ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          sed -i 's/# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
+          # Fix locale
+          echo "LANG=en_US.UTF-8" >> /etc/locale.conf
+
+          # CREAR USUARIO BUILDER (makepkg no puede ser root)
+          useradd -m -G wheel builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            /home/builder/.cargo/bin/
+            /home/builder/.cargo/registry/index/
+            /home/builder/.cargo/registry/cache/
+            /home/builder/.cargo/git/db/
             src-tauri/target/
           key: arch-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: arch-cargo-
 
-      - run: npm install
-
-      - name: Compilar binario Tauri (Sin bundle)
-        run: npm run tauri build -- --no-bundle
-
-      - name: Crear paquete Arch Linux (.pkg.tar.zst)
+      # Arreglar permisos: El cache y el checkout se hicieron como root,
+      # pero builder necesita poder escribir en ellos para compilar.
+      - name: Arreglar permisos para builder
         run: |
-          # Extraer nombre y versión de Cargo.toml de forma segura
-          APP_NAME=$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
-          APP_VERSION=$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
+          chown -R builder:builder $GITHUB_WORKSPACE
+          chown -R builder:builder /home/builder
 
-          # Reemplazar guiones con underscores (Cargo compila binarios con underscores)
-          BIN_NAME=${APP_NAME//-/_}
+      - name: Compilar Tauri y Crear Paquete Arch
+        run: |
+          # Creamos un script de build temporal que se ejecutará como 'builder'
+          # Esto evita el nightmare de escapar variables entre su - builder
+          cat <<SCRIPT > /tmp/build_script.sh
+          #!/bin/bash
+          set -e
+          cd ${GITHUB_WORKSPACE}
+          export LC_ALL=C
+          export PATH=${PATH}:/home/builder/.cargo/bin
+
+          npm install
+          npm run tauri build -- --no-bundle
+
+          APP_NAME=\$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print \$2}')
+          APP_VERSION=\$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print \$2}')
+          BIN_NAME=\${APP_NAME//-/_}
 
           echo "========================================"
-          echo "Nombre de la app (Cargo.toml): $APP_NAME"
-          echo "Nombre del binario compilado:   $BIN_NAME"
-          echo "Versión:                        $APP_VERSION"
+          echo "Nombre en Cargo.toml : \$APP_NAME"
+          echo "Nombre del binario   : \$BIN_NAME"
+          echo "Versión              : \$APP_VERSION"
           echo "========================================"
 
-          # Preparar directorio de packaging
           PKG_DIR=/tmp/arch-pkg
-          mkdir -p $PKG_DIR/src
+          mkdir -p \$PKG_DIR/src
 
-          # Copiar el binario compilado (usando el nombre con underscores)
-          cp src-tauri/target/release/$BIN_NAME $PKG_DIR/src/$BIN_NAME
+          cp src-tauri/target/release/\$BIN_NAME \$PKG_DIR/src/\$BIN_NAME
 
-          # Crear un PKGBUILD dinámico y robusto
-          cat <<EOF > $PKG_DIR/PKGBUILD
-          pkgname=$APP_NAME
-          pkgver=$APP_VERSION
+          # Crear PKGBUILD. Nota: \\$srcdir y \\$pkgdir se escapan doble
+          # para que makepkg los evalúe, mientras que \$APP_NAME se evalúa ahora.
+          cat <<PKGBUILDEOF > \$PKG_DIR/PKGBUILD
+          pkgname=\$APP_NAME
+          pkgver=\$APP_VERSION
           pkgrel=1
           pkgdesc="Aplicación Tauri"
           arch=('x86_64')
           depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'openssl' 'librsvg')
-          source=("$BIN_NAME")
-          noextract=("$BIN_NAME")
+          source=("\$BIN_NAME")
+          noextract=("\$BIN_NAME")
 
           package() {
-              install -Dm755 "\${srcdir}/\${source[0]}" "\${pkgdir}/usr/bin/\${pkgname}"
+              install -Dm755 "\\$srcdir/\$BIN_NAME" "\\$pkgdir/usr/bin/\$APP_NAME"
           }
-          EOF
+          PKGBUILDEOF
 
-          # Construir el paquete como root (en contenedores no podemos crear un user build normal fácilmente)
-          cd $PKG_DIR
+          cd \$PKG_DIR
           makepkg -sf --noconfirm --skipinteg
 
-          # Mover el resultado al directorio de trabajo de GitHub
-          mkdir -p $GITHUB_WORKSPACE/arch-dist
-          cp *.pkg.tar.zst $GITHUB_WORKSPACE/arch-dist/
+          mkdir -p ${GITHUB_WORKSPACE}/arch-dist
+          cp *.pkg.tar.zst ${GITHUB_WORKSPACE}/arch-dist/
+          SCRIPT
+
+          chmod +x /tmp/build_script.sh
+          chown builder:builder /tmp/build_script.sh
+
+          # ¡LA MAGIA! Ejecutamos todo el proceso como el usuario 'builder', no como root
+          su - builder -c "/tmp/build_script.sh"
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
