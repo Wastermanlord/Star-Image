@@ -8,7 +8,7 @@ permissions:
 
 jobs:
 
-  # ==========================================
+# ==========================================
   # JOB 2: ARCH LINUX - Paquete Nativo (.pkg.tar.zst)
   # ==========================================
   build-arch-package:
@@ -47,11 +47,9 @@ jobs:
 
       - name: Crear paquete Arch Linux (.pkg.tar.zst)
         run: |
-          # 1. Extraer info (NOMBRE CORREGIDO)
+          # 1. Extraer info
           APP_NAME=$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
           APP_VERSION=$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
-
-          # NO cambiamos guiones por guiones bajos. Usamos el nombre tal cual sale en el log de Rust.
           BIN_NAME=$APP_NAME
 
           # 2. Configurar el usuario 'builder'
@@ -62,10 +60,11 @@ jobs:
           PKG_DIR=/home/builder/arch-pkg
           mkdir -p $PKG_DIR
 
-          # Copiamos el binario compilado (verificado con guiones)
+          # COPIAR BINARIO E ICONO (Paso clave)
           cp src-tauri/target/release/$BIN_NAME $PKG_DIR/binario_app
+          cp src-tauri/icons/128x128.png $PKG_DIR/app_icon.png
 
-          # 4. Crear PKGBUILD con acceso directo al menú
+          # 4. Crear PKGBUILD
           cat <<EOF > $PKG_DIR/PKGBUILD
           pkgname='$APP_NAME'
           pkgver='$APP_VERSION'
@@ -73,21 +72,24 @@ jobs:
           pkgdesc="Visor de imágenes ligero - Proyecto Astral"
           arch=('x86_64')
           depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'openssl' 'librsvg')
-          source=("binario_app")
-          sha256sums=('SKIP')
+          source=("binario_app" "app_icon.png")
+          sha256sums=('SKIP' 'SKIP')
 
           package() {
-              # 1. Instalar el binario en /usr/bin/
+              # 1. Instalar el binario
               install -Dm755 "\$srcdir/binario_app" "\$pkgdir/usr/bin/\$pkgname"
 
-              # 2. Crear el archivo .desktop para el menú de aplicaciones
+              # 2. Instalar el icono en la ruta del sistema
+              install -Dm644 "\$srcdir/app_icon.png" "\$pkgdir/usr/share/icons/hicolor/128x128/apps/\$pkgname.png"
+
+              # 3. Crear el acceso directo apuntando al icono
               mkdir -p "\$pkgdir/usr/share/applications"
               cat <<EOT > "\$pkgdir/usr/share/applications/\$pkgname.desktop"
           [Desktop Entry]
           Name=Star Image
           Comment=Visor de imágenes rápido y ligero
           Exec=\$pkgname
-          Icon=utilities-terminal
+          Icon=\$pkgname
           Type=Application
           Categories=Graphics;Viewer;
           Terminal=false
@@ -98,7 +100,7 @@ jobs:
           # Cambiar dueño al usuario builder
           chown -R builder:builder $PKG_DIR
 
-          # 5. Ejecutar makepkg como usuario 'builder'
+          # 5. Ejecutar makepkg
           cd $PKG_DIR
           sudo -u builder makepkg -sf --noconfirm --skipinteg
 
@@ -112,4 +114,3 @@ jobs:
           generate_release_notes: true
           files: |
             arch-dist/*.pkg.tar.zst
-
