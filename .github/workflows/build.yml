@@ -9,7 +9,7 @@ permissions:
 jobs:
 
 # ==========================================
-  # JOB 2: ARCH LINUX - Paquete Nativo (.pkg.tar.zst)
+  # JOB 2: ARCH LINUX - Genera paquete nativo .pkg.tar.zst
   # ==========================================
   build-arch-package:
     runs-on: ubuntu-24.04
@@ -21,8 +21,9 @@ jobs:
       - name: Instalar dependencias base
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel git cmake python curl sudo \
-            webkit2gtk-4.1 gtk3 libayatana-appindicator-gtk3 patchelf \
+          # Agregamos 'rust' a la lista para evitar que pregunte qué proveedor usar
+          pacman -S --noconfirm --needed base-devel git cmake python curl sudo \
+            webkit2gtk-4.1 gtk3 libayatana-appindicator patchelf \
             openssl librsvg pacman-contrib rust cargo
 
       - uses: actions/setup-node@v4
@@ -40,55 +41,57 @@ jobs:
             ~/.cargo/git/db/
             src-tauri/target/
           key: arch-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: arch-cargo-
 
       - run: npm install
       - run: npm run tauri build -- --no-bundle
 
       - name: Crear paquete Arch Linux (.pkg.tar.zst)
         run: |
-          # 1. Extraer info real
+          # 1. Extraer info
           APP_NAME=$(grep '^name' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
           APP_VERSION=$(grep '^version' src-tauri/Cargo.toml | head -n1 | awk -F '"' '{print $2}')
-          # IMPORTANTE: Si el nombre tiene guiones, Cargo a veces usa guiones bajos en el binario
           BIN_NAME=${APP_NAME//-/_}
 
-          # 2. Configurar usuario builder
+          # 2. Configurar el usuario 'builder'
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-          # 3. Crear carpeta de trabajo limpia en /home/builder
-          WORK_DIR=/home/builder/build
-          mkdir -p $WORK_DIR
+          # 3. Preparar directorio de trabajo
+          # En lugar de crear rutas pkg/usr manuales, usamos una carpeta de fuentes
+          PKG_DIR=/home/builder/arch-pkg
+          mkdir -p $PKG_DIR
 
-          # Copiar el binario compilado allí (será nuestra "fuente")
-          cp src-tauri/target/release/$BIN_NAME $WORK_DIR/$APP_NAME
+          # Copiamos el binario compilado como "fuente" para makepkg
+          cp src-tauri/target/release/$BIN_NAME $PKG_DIR/binario_app
 
-          # 4. Crear PKGBUILD estándar
-          cat <<EOF > $WORK_DIR/PKGBUILD
+          # 4. Crear PKGBUILD corrigiendo la ruta
+          cat <<EOF > $PKG_DIR/PKGBUILD
           pkgname='$APP_NAME'
           pkgver='$APP_VERSION'
           pkgrel=1
-          pkgdesc="Aplicación del Proyecto Astral"
+          pkgdesc="Aplicación Tauri - Proyecto Astral"
           arch=('x86_64')
-          # Usamos el binario local como fuente
-          source=("\$pkgname")
+          depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'openssl' 'librsvg')
+          # El binario que copiamos es nuestra fuente
+          source=("binario_app")
           sha256sums=('SKIP')
-          depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator-gtk3' 'openssl' 'librsvg')
 
           package() {
-              # Makepkg pone las fuentes en \$srcdir
-              install -Dm755 "\$srcdir/\$pkgname" "\$pkgdir/usr/bin/\$pkgname"
+              # install -D crea las carpetas necesarias automáticamente
+              install -Dm755 "\$srcdir/binario_app" "\$pkgdir/usr/bin/\$pkgname"
           }
           EOF
 
-          # Dar permisos al usuario builder
-          chown -R builder:builder $WORK_DIR
+          # Cambiar dueño al usuario builder
+          chown -R builder:builder $PKG_DIR
 
-          # 5. Entrar y construir
-          cd $WORK_DIR
-          sudo -u builder makepkg -sf --noconfirm
+          # 5. Ejecutar makepkg como usuario 'builder'
+          cd $PKG_DIR
+          # --skipinteg es necesario porque no pusimos hashes reales en sha256sums
+          sudo -u builder makepkg -sf --noconfirm --skipinteg
 
-          # 6. Sacar el archivo final al workspace de GitHub
+          # 6. Mover el resultado
           mkdir -p $GITHUB_WORKSPACE/arch-dist
           cp *.pkg.tar.zst $GITHUB_WORKSPACE/arch-dist/
 
