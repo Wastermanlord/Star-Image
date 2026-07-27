@@ -1,6 +1,6 @@
 {
   "name": "star-image",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Star Image - Visor de imágenes ligero",
   "scripts": {
     "dev": "vite",

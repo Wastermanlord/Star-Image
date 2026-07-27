@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Star Image",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "com.proyectoastral.starimage",
   "build": {
     "frontendDist": "../dist",
@@ -55,7 +55,7 @@
     "updater": {
       "active": true,
       "dialog": false,
-      "pubkey": "CHANGEME",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkzQkJFN0JCNjVEOTE0ODYKUldTR0ZObGx1K2U3a3k4TGQzQVpYOGgvbHdTdmVkbGlZVkJpenZ0b055RzdoTGxMVWt1UlZTaVEK",
       "endpoints": [
         "https://github.com/Wastermanlord/Star-Image/releases/latest/download/updater.json"
       ]
