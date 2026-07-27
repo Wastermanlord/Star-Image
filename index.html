@@ -123,15 +123,16 @@
               </button>
             </div>
             <div class="img-menu-center">
-              <div class="zoom-group">
-                <button class="ov-btn" id="zoomOutBtn" title="Alejar">
-                  <i class="ph ph-minus"></i>
-                </button>
-                <span id="zoomLevel" class="ov-text zoom-lbl">Ajustar</span>
-                <button class="ov-btn" id="zoomInBtn" title="Acercar">
-                  <i class="ph ph-plus"></i>
-                </button>
-              </div>
+                <div class="zoom-group">
+                  <button class="ov-btn" id="zoomOutBtn" title="Alejar">
+                    <i class="ph ph-minus"></i>
+                  </button>
+                  <input type="range" id="zoomSlider" class="zoom-slider" min="5" max="500" value="100">
+                  <span id="zoomLevel" class="ov-text zoom-lbl">Ajustar</span>
+                  <button class="ov-btn" id="zoomInBtn" title="Acercar">
+                    <i class="ph ph-plus"></i>
+                  </button>
+                </div>
               <button class="ov-btn" id="fitBtn" title="Ajustar">
                 <i class="ph ph-arrows-out"></i>
               </button>

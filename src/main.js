@@ -139,6 +139,7 @@ function bindEvents() {
 
   $('zoomInBtn').onclick = () => zoomChange(1);
   $('zoomOutBtn').onclick = () => zoomChange(-1);
+  $('zoomSlider').oninput = (e) => zoomSliderChange(e);
   $('fitBtn').onclick = fitToWindow;
   $('fullscreenBtn').onclick = toggleFullscreen;
 
@@ -175,7 +176,7 @@ function bindEvents() {
   $('aboutBtn').onclick = toggleAbout;
   $('aboutClose').onclick = toggleAbout;
   $('aboutModal').onclick = (e) => { if (e.target === $('aboutModal')) toggleAbout(); };
-  $('aboutGitHub').onclick = (e) => { e.preventDefault(); invoke('open_folder', { path: 'https://github.com/Wastermanlord/Star-Image' }); };
+  $('aboutGitHub').onclick = (e) => { e.preventDefault(); invoke('open_folder', { path: 'https://github.com/Wastermanlord/Star-Image/releases' }); };
   $('checkUpdateBtn').onclick = checkForUpdates;
   $('downloadUpdateBtn').onclick = downloadUpdate;
   $('installUpdateBtn').onclick = installUpdate;
@@ -780,6 +781,18 @@ function cancelRename() {
   _renameOpen = false;
 }
 
+// ─── Zoom slider ────────────────────────────────────────────────────────────
+function zoomSliderChange(e) {
+  if (!state.nativeW || !state.nativeH) return;
+  const val = parseInt(e.target.value, 10);
+  const fitZoom = getFitZoom();
+  state.fitMode = false;
+  state.zoom = val / 100;
+  _panOffset = { x: 0, y: 0 };
+  applyZoom();
+  setMode('zoom');
+}
+
 // ─── Zoom por botones (suave con snapping) ───────────────────────────────────
 function zoomChange(dir) {
   if (!state.nativeW || !state.nativeH) return;
@@ -892,10 +905,13 @@ function updateZoomDisplay() {
   let pct;
   if (state.fitMode) {
     pct = 'Ajustar';
+    $('zoomSlider').value = 100;
   } else if (Math.abs(state.zoom - 1.0) < 0.005) {
     pct = '100%';
+    $('zoomSlider').value = 100;
   } else {
     pct = Math.round(state.zoom * 100) + '%';
+    $('zoomSlider').value = Math.round(state.zoom * 100);
   }
   $('zoomLevel').textContent = pct;
 }
