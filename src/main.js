@@ -3,6 +3,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { check } from '@tauri-apps/plugin-updater';
 
+
 const state = {
   images: [],
   thumbCache: {},
@@ -63,7 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch {}
   }
 
-  // Silently check for updates on startup (only in production/Tauri)
+  // Clean stale thumbnails and check for updates
+  invoke('clean_thumb_cache').catch(() => {});
   setTimeout(checkForUpdatesSilent, 2000);
 });
 
@@ -620,12 +622,13 @@ function renderGallery() {
     return;
   }
   $('galleryCount').textContent = `${filtered.length} / ${state.images.length}`;
-  grid.innerHTML = filtered.map((img, i) =>
-    `<div class="gallery-item" data-index="${state.images.indexOf(img)}">
-      <img src="${convertFileSrc(img.path)}" loading="lazy" alt="${img.name}">
+  grid.innerHTML = filtered.map((img, i) => {
+    const thumbPath = state.thumbCache[img.path] || img.path;
+    return `<div class="gallery-item" data-index="${state.images.indexOf(img)}">
+      <img src="${convertFileSrc(thumbPath)}" loading="lazy" alt="${img.name}">
       <span class="gallery-item-name">${img.name}</span>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 }
 
 // ─── SHORTCUTS ─────────────────────────────────────────────────────────────────
@@ -1012,8 +1015,14 @@ async function doSearch() {
   if (!q) { $('searchResults').innerHTML = '<div class="search-empty">Escribe para buscar...</div>'; return; }
   try {
     const recent = await invoke('get_recent_paths');
-    const root = (recent.paths && recent.paths[0]) || '/home/javier';
+    const root = recent.paths && recent.paths[0];
+    if (!root) {
+      $('searchResults').innerHTML = '<div class="search-empty">Abrí una carpeta primero</div>';
+      return;
+    }
     const results = await invoke('search_images', { path: root });
+    const dirs = new Set(results.map(f => f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : ''));
+    for (const d of dirs) { if (d) invoke('add_folder_scope', { path: d }).catch(() => {}); }
     const filtered = results.filter(f => f.name.toLowerCase().includes(q)).slice(0, 100);
     const container = $('searchResults');
     if (!filtered.length) {
@@ -1060,6 +1069,7 @@ function onKey(e) {
   else if (e.key === 'ArrowRight' && !e.ctrlKey) { e.preventDefault(); nextImage(); }
   else if (e.key === 'Escape') {
     if ($('aboutModal').style.display !== 'none') { toggleAbout(); return; }
+    if ($('contextMenu').style.display !== 'none') { hideCtxMenu(); return; }
     $('searchPanel').style.display = 'none';
   }
   else if (e.key === 's' && !e.ctrlKey) { e.preventDefault(); toggleSlideshow(); }

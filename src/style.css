@@ -12,6 +12,7 @@
   --accent-bg: rgba(124, 111, 240, 0.12);
   --accent-hover: #9b8ff5;
   --border: #1e1e32;
+  --border2: #2a2a44;
   --shadow: rgba(0, 0, 0, 0.6);
   --radius: 8px;
   --radius-sm: 6px;
@@ -33,6 +34,7 @@
   --accent-bg: rgba(108, 92, 231, 0.08);
   --accent-hover: #5a4bd1;
   --border: #d4d4e0;
+  --border2: #c4c4d0;
   --shadow: rgba(0, 0, 0, 0.08);
 }
 
@@ -287,6 +289,7 @@ html, body {
 
 #mainImage {
   image-rendering: auto;
+  image-orientation: from-image;
   will-change: transform;
   backface-visibility: hidden;
   max-width: none;
@@ -718,6 +721,8 @@ html, body {
 .btn.primary:hover { background: var(--accent-hover); }
 .btn.secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
 .btn.secondary:hover { background: var(--bg4); }
+.btn.outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.btn.outline:hover { background: var(--accent-bg); }
 
 .btn-icon {
   width: 32px;
